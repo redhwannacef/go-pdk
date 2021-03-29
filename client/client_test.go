@@ -4,66 +4,79 @@ import (
 	"testing"
 
 	"github.com/Kong/go-pdk/bridge"
+	"github.com/Kong/go-pdk/bridge/bridgetest"
 	"github.com/Kong/go-pdk/entities"
+	"github.com/Kong/go-pdk/server/kong_plugin_protocol"
 	"github.com/stretchr/testify/assert"
 )
 
-var client Client
-var ch chan interface{}
-
-func init() {
-	ch = make(chan interface{})
-	client = New(ch)
-}
-
-func getBack(f func()) interface{} {
-	go f()
-	d := <-ch
-	ch <- nil
-
-	return d
-}
-
-func getStrValue(f func(res chan string), val string) string {
-	res := make(chan string)
-	go f(res)
-	_ = <-ch
-	ch <- val
-	return <-res
+func mockClient(t *testing.T, s []bridgetest.MockStep) Client {
+	return Client{bridge.New(bridgetest.Mock(t, s))}
 }
 
 func TestGetIp(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.get_ip"}, getBack(func() { client.GetIp() }))
-	assert.Equal(t, "foo", getStrValue(func(res chan string) { r, _ := client.GetIp(); res <- r }, "foo"))
-	assert.Equal(t, "", getStrValue(func(res chan string) { r, _ := client.GetIp(); res <- r }, ""))
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.get_ip", nil, bridge.WrapString("10.10.10.1")},
+	})
+
+	resp, err := c.GetIp()
+	assert.NoError(t, err)
+	assert.Equal(t, resp, "10.10.10.1")
 }
 
 func TestGetForwardedIp(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.get_forwarded_ip"}, getBack(func() { client.GetForwardedIp() }))
-	assert.Equal(t, "foo", getStrValue(func(res chan string) { r, _ := client.GetForwardedIp(); res <- r }, "foo"))
-	assert.Equal(t, "", getStrValue(func(res chan string) { r, _ := client.GetForwardedIp(); res <- r }, ""))
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.get_forwarded_ip", nil, bridge.WrapString("10.10.10.1")},
+	})
+
+	resp, err := c.GetForwardedIp()
+	assert.NoError(t, err)
+	assert.Equal(t, resp, "10.10.10.1")
 }
 
 func TestGetPort(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.get_port"}, getBack(func() { client.GetPort() }))
-	assert.Equal(t, "foo", getStrValue(func(res chan string) { r, _ := client.GetPort(); res <- r }, "foo"))
-	assert.Equal(t, "", getStrValue(func(res chan string) { r, _ := client.GetPort(); res <- r }, ""))
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.get_port", nil, bridge.WrapString("443")},
+	})
+	resp, err := c.GetPort()
+	assert.NoError(t, err)
+	assert.Equal(t, resp, "443")
 }
 
 func TestGetForwardedPort(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.get_forwarded_port"}, getBack(func() { client.GetForwardedPort() }))
-	assert.Equal(t, getStrValue(func(res chan string) { r, _ := client.GetForwardedPort(); res <- r }, "foo"), "foo")
-	assert.Equal(t, getStrValue(func(res chan string) { r, _ := client.GetForwardedPort(); res <- r }, ""), "")
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.get_forwarded_port", nil, bridge.WrapString("80")},
+	})
+	resp, err := c.GetForwardedPort()
+	assert.NoError(t, err)
+	assert.Equal(t, resp, "80")
 }
 
 func TestGetCredential(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.get_credential"}, getBack(func() { client.GetCredential() }))
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.get_credential", nil,
+			&kong_plugin_protocol.AuthenticatedCredential{Id: "000:00", ConsumerId: "000:01"},
+		},
+	})
+
+	resp, err := c.GetCredential()
+	assert.NoError(t, err)
+	assert.Equal(t, AuthenticatedCredential{Id: "000:00", ConsumerId: "000:01"}, resp)
 }
 
 func TestLoadConsumer(t *testing.T) {
-	assert.Equal(t, bridge.StepData{Method: "kong.client.load_consumer", Args: []interface{}{"foo", true}}, getBack(func() { client.LoadConsumer("foo", true) }))
+	c := mockClient(t, []bridgetest.MockStep{
+		{"kong.client.load_consumer",
+			&kong_plugin_protocol.ConsumerSpec{Id: "001", ByUsername: false},
+			&kong_plugin_protocol.Consumer{Id: "001", Username: "Jon Doe"},
+		},
+	})
+	resp, err := c.LoadConsumer("001", false)
+	assert.NoError(t, err)
+	assert.Equal(t, entities.Consumer{Id: "001", Username: "Jon Doe"}, resp)
 }
 
+/*
 func TestGetConsumer(t *testing.T) {
 	assert.Equal(t, bridge.StepData{Method: "kong.client.get_consumer"}, getBack(func() { client.GetConsumer() }))
 }
@@ -78,3 +91,4 @@ func TestGetProtocol(t *testing.T) {
 	assert.Equal(t, bridge.StepData{Method: "kong.client.get_protocol", Args: []interface{}{true}}, getBack(func() { client.GetProtocol(true) }))
 	assert.Equal(t, bridge.StepData{Method: "kong.client.get_protocol", Args: []interface{}{false}}, getBack(func() { client.GetProtocol(false) }))
 }
+*/
