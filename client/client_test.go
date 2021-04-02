@@ -36,20 +36,20 @@ func TestGetForwardedIp(t *testing.T) {
 
 func TestGetPort(t *testing.T) {
 	c := mockClient(t, []bridgetest.MockStep{
-		{"kong.client.get_port", nil, bridge.WrapString("443")},
+		{"kong.client.get_port", nil, &kong_plugin_protocol.Int{V: 443}},
 	})
 	resp, err := c.GetPort()
 	assert.NoError(t, err)
-	assert.Equal(t, resp, "443")
+	assert.Equal(t, 443, resp)
 }
 
 func TestGetForwardedPort(t *testing.T) {
 	c := mockClient(t, []bridgetest.MockStep{
-		{"kong.client.get_forwarded_port", nil, bridge.WrapString("80")},
+		{"kong.client.get_forwarded_port", nil, &kong_plugin_protocol.Int{V: 80}},
 	})
 	resp, err := c.GetForwardedPort()
 	assert.NoError(t, err)
-	assert.Equal(t, resp, "80")
+	assert.Equal(t, 80, resp)
 }
 
 func TestGetCredential(t *testing.T) {
